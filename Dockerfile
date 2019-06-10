@@ -1,6 +1,6 @@
 ARG BASE_TAG=5.3.0
 
-FROM gcr.io/kaggle-images/python-tensorflow-whl:1.13.1-py37 as tensorflow_whl
+FROM gcr.io/kaggle-images/python-tensorflow-whl:1.13.1-py37-2 as tensorflow_whl
 FROM continuumio/anaconda3:${BASE_TAG}
 
 ADD clean-layer.sh  /tmp/clean-layer.sh
@@ -14,9 +14,9 @@ RUN apt-get update && \
     # Use a fixed apt-get repo to stop intermittent failures due to flaky httpredir connections,
     # as described by Lionel Chan at http://stackoverflow.com/a/37426929/5881346
 RUN sed -i "s/httpredir.debian.org/debian.uchicago.edu/" /etc/apt/sources.list && \
-    apt-get update && apt-get install -y build-essential unzip && \
+    apt-get update && apt-get install -y build-essential unzip cmake && \
+    conda update -y conda && conda update -y python && \
     pip install pip==19.0.3 && \
-    apt-get -y install cmake && \
     /tmp/clean-layer.sh
 
 # The anaconda base image includes outdated versions of these packages. Update them to include the latest version.
@@ -42,6 +42,7 @@ RUN pip install seaborn python-dateutil dask && \
 COPY --from=tensorflow_whl /tmp/tensorflow_cpu/*.whl /tmp/tensorflow_cpu/
 RUN pip install /tmp/tensorflow_cpu/tensorflow*.whl && \
     rm -rf /tmp/tensorflow_cpu && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 RUN apt-get install -y libfreetype6-dev && \
@@ -105,6 +106,7 @@ RUN apt-get install -y libfreetype6-dev && \
     # Stop-words
     pip install stop-words && \
     pip install --upgrade scikit-image && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Make sure the dynamic linker finds the right libstdc++
@@ -127,7 +129,6 @@ RUN apt-get -y install zlib1g-dev liblcms2-dev libwebp-dev libgeos-dev && \
     pip install cartopy && \
     # MXNet
     pip install mxnet && \
-    pip install --upgrade numpy && \
     pip install gluonnlp && \
     pip install gluoncv && \
     # h2o (requires java)
@@ -149,6 +150,7 @@ RUN apt-get -y install zlib1g-dev liblcms2-dev libwebp-dev libgeos-dev && \
     python -c "from keras.models import Sequential; from keras import backend; print(backend._BACKEND)" && \
     # Keras reverts to /tmp from ~ when it detects a read-only file system
     mkdir -p /tmp/.keras && cp /root/.keras/keras.json /tmp/.keras && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # b/128333086: Set PROJ_LIB to points to the proj4 cartographic library.
@@ -167,16 +169,16 @@ RUN pip install scipy && \
     # Latest version fails to install, see https://github.com/cvxopt/cvxopt/issues/77
     #    and https://github.com/cvxopt/cvxopt/issues/80
     # pip install cvxopt && \
-    # Profiling and other utilities
+    # Profiling and other utilities 
+    # line_profiler is broken on pip. See https://github.com/rkern/line_profiler/pull/145/files.
+    cd /usr/local/src && git clone https://github.com/rkern/line_profiler.git && \
+    find line_profiler -name '*.pyx' -exec cython {} \; && cd line_profiler && pip install . && \
     pip install line_profiler && \
     pip install orderedmultidict && \
     pip install smhasher && \
     pip install bokeh && \
-    # b/134599839: latest version requires llvmlite >= 0.39.0. Base image comes with 0.38.0.
-    # It fails to reinstall it because it is a distutil package. Remove pin once base image include newer verson of llvmlite.
-    pip install numba==0.38.0 && \
+    pip install numba && \
     pip install datashader && \
-    # Boruta (python implementation)
     pip install Boruta && \
     cd /usr/local/src && git clone git://github.com/nicolashennetier/pyeconometrics.git && \
     cd pyeconometrics && python setup.py install && \
@@ -201,6 +203,7 @@ RUN apt-get install -y libgl1-mesa-glx && \
     # xvfbwrapper with dependencies
     apt-get install -y xvfb && \
     pip install xvfbwrapper && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 RUN pip install mpld3 && \
@@ -218,7 +221,7 @@ RUN pip install mpld3 && \
     pip install path.py && \
     pip install Geohash && \
     # https://github.com/vinsci/geohash/issues/4
-    sed -i -- 's/geohash/.geohash/g' /opt/conda/lib/python3.6/site-packages/Geohash/__init__.py && \
+    sed -i -- 's/geohash/.geohash/g' /opt/conda/lib/python3.7/site-packages/Geohash/__init__.py && \
     pip install deap && \
     pip install tpot && \
     pip install scikit-optimize && \
@@ -257,7 +260,9 @@ RUN pip install mpld3 && \
     pip install descartes && \
     pip install geojson && \
     pip install pysal && \
-    pip install pyflux && \
+    # Rebuild compiled Cython files (.pyx) to make them compatible with python 3.7
+    cd /usr/local/src && git clone --branch 0.4.17 https://github.com/RJT1990/pyflux.git && \
+    find pyflux -name '*.pyx' -exec cython {} \; && cd pyflux && pip install . && \
     pip install terminalplot && \
     pip install raccoon && \
     pip install pydicom && \
@@ -287,7 +292,9 @@ RUN pip install mpld3 && \
     pip install cleverhans && \
     pip install leven && \
     pip install catboost && \
-    #cd /usr/local/src && git clone --depth=1 https://github.com/AxeldeRomblay/MLBox && cd MLBox/python-package && python setup.py install && \
+    # Rebuild to make it compatible with Python 3.7.
+    cd /usr/local/src && git clone --recursive --branch 0.2.11 https://github.com/ibayer/fastFM.git && \
+    cd fastFM && PYTHON=python3 make --silent && pip install . && \
     pip install fastFM && \
     pip install lightfm && \
     pip install paramnb && \
@@ -306,6 +313,7 @@ RUN pip install mpld3 && \
     pip install eli5 && \
     pip install implicit && \
     pip install dask-ml[xgboost] && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 RUN pip install kmeans-smote --no-dependencies && \
@@ -326,12 +334,6 @@ RUN pip install kmeans-smote --no-dependencies && \
     pip install glmnet_py && \
     pip install lime && \
     pip install memory_profiler && \
-    /tmp/clean-layer.sh
-
-# install cython & cysignals before pyfasttext
-RUN pip install --upgrade cython && \
-    pip install --upgrade cysignals && \
-    pip install pyfasttext && \
     pip install ktext && \
     pip install git+git://github.com/facebookresearch/fastText.git && \
     apt-get install -y libhunspell-dev && pip install hunspell && \
@@ -351,13 +353,13 @@ RUN pip install --upgrade cython && \
     pip install janome && \
     pip install wfdb && \
     pip install vecstack && \
-    pip install sklearn-contrib-lightning && \
     # yellowbrick machine learning visualization library
     pip install yellowbrick && \
     pip install mlcrate && \
     # Required to display Altair charts in Jupyter notebook
     pip install vega3 && \
     jupyter nbextension install --sys-prefix --py vega3 && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Fast.ai and dependencies
@@ -412,12 +414,11 @@ RUN pip install bcolz && \
     pip install wcwidth && \
     pip install webencodings && \
     pip install widgetsnbextension && \
-    # Latest version of pyarrow conflicts with pandas
-    # https://github.com/pandas-dev/pandas/issues/23053
-    pip install pyarrow==0.10.0 && \
+    pip install pyarrow && \
     pip install feather-format && \
     pip install fastai && \
     pip install torchtext && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # allennlp and dependencies
@@ -428,6 +429,7 @@ RUN pip install jsonnet overrides tensorboardX && \
     pip install pytorch-pretrained-bert>=0.6.0 jsonpickle && \
     pip install requests>=2.18 editdistance conllu==0.11 && \
     pip install --no-dependencies allennlp && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
     ###########
@@ -474,6 +476,7 @@ RUN pip install flashtext && \
     pip install plotly_express && \
     pip install albumentations && \
     pip install pytorch-ignite && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Tesseract and some associated utility packages
@@ -487,12 +490,13 @@ RUN apt-get install tesseract-ocr -y && \
 ENV TESSERACT_PATH=/usr/bin/tesseract
 
 # Pin Vowpal Wabbit v8.6.0 because 8.6.1 does not build or install successfully
-RUN cd /usr/local/src && \
-    git clone -b 8.6.0 https://github.com/JohnLangford/vowpal_wabbit.git && \
-    ./vowpal_wabbit/python/conda_install.sh && \
-    # Reinstall in non-editable mode (without the -e flag)
-    pip install vowpal_wabbit/python && \
-    /tmp/clean-layer.sh
+# This installs python 3.6
+# RUN cd /usr/local/src && \
+#     git clone -b 8.6.0 https://github.com/JohnLangford/vowpal_wabbit.git && \
+#     ./vowpal_wabbit/python/conda_install.sh && \
+#     # Reinstall in non-editable mode (without the -e flag)
+#     pip install vowpal_wabbit/python && \
+#     /tmp/clean-layer.sh
 
 # For Facets
 ENV PYTHONPATH=$PYTHONPATH:/opt/facets/facets_overview/python/
@@ -506,25 +510,57 @@ RUN pip install --upgrade dask && \
     mkdir -p /root/.jupyter && touch /root/.jupyter/jupyter_nbconvert_config.py && touch /root/.jupyter/migrated && \
     mkdir -p /.jupyter && touch /.jupyter/jupyter_nbconvert_config.py && touch /.jupyter/migrated && \
     # Stop Matplotlib printing junk to the console on first load
-    sed -i "s/^.*Matplotlib is building the font cache using fc-list.*$/# Warning removed by Kaggle/g" /opt/conda/lib/python3.6/site-packages/matplotlib/font_manager.py && \
+    sed -i "s/^.*Matplotlib is building the font cache using fc-list.*$/# Warning removed by Kaggle/g" /opt/conda/lib/python3.7/site-packages/matplotlib/font_manager.py && \
     # Make matplotlib output in Jupyter notebooks display correctly
     mkdir -p /etc/ipython/ && echo "c = get_config(); c.IPKernelApp.matplotlib = 'inline'" > /etc/ipython/ipython_config.py && \
+    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Add BigQuery client proxy settings
 ENV PYTHONUSERBASE "/root/.local"
-ADD patches/kaggle_gcp.py /root/.local/lib/python3.6/site-packages/kaggle_gcp.py
-ADD patches/kaggle_secrets.py /root/.local/lib/python3.6/site-packages/kaggle_secrets.py
-ADD patches/log.py /root/.local/lib/python3.6/site-packages/log.py
-ADD patches/sitecustomize.py /root/.local/lib/python3.6/site-packages/sitecustomize.py
+ADD patches/kaggle_gcp.py /root/.local/lib/python3.7/site-packages/kaggle_gcp.py
+ADD patches/kaggle_secrets.py /root/.local/lib/python3.7/site-packages/kaggle_secrets.py
+ADD patches/log.py /root/.local/lib/python3.7/site-packages/log.py
+ADD patches/sitecustomize.py /root/.local/lib/python3.7/site-packages/sitecustomize.py
 
 # TensorBoard Jupyter extension. Should be replaced with TensorBoard's provided magic once we have
 # worker tunneling support in place.
 ENV JUPYTER_CONFIG_DIR "/root/.jupyter/"
 RUN pip install jupyter_tensorboard && \
     jupyter serverextension enable jupyter_tensorboard && \
-    jupyter tensorboard enable
-ADD patches/tensorboard/notebook.py /opt/conda/lib/python3.6/site-packages/tensorboard/notebook.py
+    jupyter tensorboard enable && \
+    python -c "import tensorflow" && \
+    /tmp/clean-layer.sh
+ADD patches/tensorboard/notebook.py /opt/conda/lib/python3.7/site-packages/tensorboard/notebook.py
 
 # Set backend for matplotlib
 ENV MPLBACKEND "agg"
+
+# TODO(rosbo): Move this back after `vecstack` package.
+# Rebuild to make it compatible with Python 3.7: https://github.com/scikit-learn-contrib/lightning/issues/132
+# RUN cd /usr/local/src && git clone --recursive --branch 0.5.0 https://github.com/scikit-learn-contrib/lightning.git && \
+#     find lightning -name '*.pyx' -exec cython {} \; && cd lightning && pip install .
+# Tried also with the PYTHON=python3 make approach and failed with: (is it due to the MacOS filesystem?)
+# Traceback (most recent call last):
+#   File "setup.py", line 67, in <module>
+#     'Operating System :: MacOS'
+#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/core.py", line 137, in setup
+#     config = configuration()
+#   File "setup.py", line 30, in configuration
+#     config.add_subpackage('lightning')
+#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/misc_util.py", line 1036, in add_subpackage
+#     caller_level = 2)
+#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/misc_util.py", line 1005, in get_subpackage
+#     caller_level = caller_level + 1)
+#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/misc_util.py", line 942, in _get_configuration_from_setup_py
+#     config = setup_module.configuration(*args)
+#   File "lightning/setup.py", line 11, in configuration
+#     maybe_cythonize_extensions(top_path, config)
+#   File "/opt/conda/lib/python3.7/site-packages/sklearn/_build_utils/__init__.py", line 92, in maybe_cythonize_extensions
+#     compiler_directives={'language_level': 3})
+#   File "/opt/conda/lib/python3.7/site-packages/Cython/Build/Dependencies.py", line 1026, in cythonize
+#     cythonize_one(*args)
+#   File "/opt/conda/lib/python3.7/site-packages/Cython/Build/Dependencies.py", line 1146, in cythonize_one
+#     raise CompileError(None, pyx_file)
+# Cython.Compiler.Errors.CompileError: lightning/impl/dual_cd_fast.pyx
+# Makefile:9: recipe for target 'inplace' failed
