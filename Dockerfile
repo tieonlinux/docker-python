@@ -16,7 +16,7 @@ RUN apt-get update && \
 RUN sed -i "s/httpredir.debian.org/debian.uchicago.edu/" /etc/apt/sources.list && \
     apt-get update && apt-get install -y build-essential unzip cmake && \
     conda update -y conda && conda update -y python && \
-    pip install pip==19.0.3 && \
+    pip install --upgrade pip && \
     /tmp/clean-layer.sh
 
 # The anaconda base image includes outdated versions of these packages. Update them to include the latest version.
@@ -42,7 +42,6 @@ RUN pip install seaborn python-dateutil dask && \
 COPY --from=tensorflow_whl /tmp/tensorflow_cpu/*.whl /tmp/tensorflow_cpu/
 RUN pip install /tmp/tensorflow_cpu/tensorflow*.whl && \
     rm -rf /tmp/tensorflow_cpu && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 RUN apt-get install -y libfreetype6-dev && \
@@ -106,7 +105,6 @@ RUN apt-get install -y libfreetype6-dev && \
     # Stop-words
     pip install stop-words && \
     pip install --upgrade scikit-image && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Make sure the dynamic linker finds the right libstdc++
@@ -150,7 +148,6 @@ RUN apt-get -y install zlib1g-dev liblcms2-dev libwebp-dev libgeos-dev && \
     python -c "from keras.models import Sequential; from keras import backend; print(backend._BACKEND)" && \
     # Keras reverts to /tmp from ~ when it detects a read-only file system
     mkdir -p /tmp/.keras && cp /root/.keras/keras.json /tmp/.keras && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # b/128333086: Set PROJ_LIB to points to the proj4 cartographic library.
@@ -203,7 +200,6 @@ RUN apt-get install -y libgl1-mesa-glx && \
     # xvfbwrapper with dependencies
     apt-get install -y xvfb && \
     pip install xvfbwrapper && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 RUN pip install mpld3 && \
@@ -313,7 +309,6 @@ RUN pip install mpld3 && \
     pip install eli5 && \
     pip install implicit && \
     pip install dask-ml[xgboost] && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 RUN pip install kmeans-smote --no-dependencies && \
@@ -335,10 +330,13 @@ RUN pip install kmeans-smote --no-dependencies && \
     pip install lime && \
     pip install memory_profiler && \
     pip install ktext && \
-    pip install git+git://github.com/facebookresearch/fastText.git && \
+    pip install pyfasttext && \
     apt-get install -y libhunspell-dev && pip install hunspell && \
     pip install annoy && \
     pip install category_encoders && \
+    # Newer version crashes (latest = 1.14.0) when running tensorflow.
+    # python -c "from google.cloud import bigquery; import tensorflow". This flow is common because bigquery is imported in kaggle_gcp.py
+    # which is loaded at startup.
     pip install google-cloud-bigquery==1.12.1 && \
     pip install ortools && \
     pip install scattertext && \
@@ -359,7 +357,6 @@ RUN pip install kmeans-smote --no-dependencies && \
     # Required to display Altair charts in Jupyter notebook
     pip install vega3 && \
     jupyter nbextension install --sys-prefix --py vega3 && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Fast.ai and dependencies
@@ -418,7 +415,6 @@ RUN pip install bcolz && \
     pip install feather-format && \
     pip install fastai && \
     pip install torchtext && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # allennlp and dependencies
@@ -429,7 +425,6 @@ RUN pip install jsonnet overrides tensorboardX && \
     pip install pytorch-pretrained-bert>=0.6.0 jsonpickle && \
     pip install requests>=2.18 editdistance conllu==0.11 && \
     pip install --no-dependencies allennlp && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
     ###########
@@ -476,12 +471,12 @@ RUN pip install flashtext && \
     pip install plotly_express && \
     pip install albumentations && \
     pip install pytorch-ignite && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Tesseract and some associated utility packages
 RUN apt-get install tesseract-ocr -y && \
     pip install pytesseract && \
+    # pytesseract is incompatible with version 0.5.4
     pip install wand==0.5.3 && \
     pip install pdf2image && \
     pip install PyPDF && \
@@ -489,6 +484,7 @@ RUN apt-get install tesseract-ocr -y && \
     /tmp/clean-layer.sh
 ENV TESSERACT_PATH=/usr/bin/tesseract
 
+# See below why it is commented out.
 # Pin Vowpal Wabbit v8.6.0 because 8.6.1 does not build or install successfully
 # This installs python 3.6
 # RUN cd /usr/local/src && \
@@ -513,7 +509,6 @@ RUN pip install --upgrade dask && \
     sed -i "s/^.*Matplotlib is building the font cache using fc-list.*$/# Warning removed by Kaggle/g" /opt/conda/lib/python3.7/site-packages/matplotlib/font_manager.py && \
     # Make matplotlib output in Jupyter notebooks display correctly
     mkdir -p /etc/ipython/ && echo "c = get_config(); c.IPKernelApp.matplotlib = 'inline'" > /etc/ipython/ipython_config.py && \
-    python -c "import tensorflow" && \
     /tmp/clean-layer.sh
 
 # Add BigQuery client proxy settings
@@ -529,38 +524,8 @@ ENV JUPYTER_CONFIG_DIR "/root/.jupyter/"
 RUN pip install jupyter_tensorboard && \
     jupyter serverextension enable jupyter_tensorboard && \
     jupyter tensorboard enable && \
-    python -c "import tensorflow" && \
-    /tmp/clean-layer.sh
+   /tmp/clean-layer.sh
 ADD patches/tensorboard/notebook.py /opt/conda/lib/python3.7/site-packages/tensorboard/notebook.py
 
 # Set backend for matplotlib
 ENV MPLBACKEND "agg"
-
-# TODO(rosbo): Move this back after `vecstack` package.
-# Rebuild to make it compatible with Python 3.7: https://github.com/scikit-learn-contrib/lightning/issues/132
-# RUN cd /usr/local/src && git clone --recursive --branch 0.5.0 https://github.com/scikit-learn-contrib/lightning.git && \
-#     find lightning -name '*.pyx' -exec cython {} \; && cd lightning && pip install .
-# Tried also with the PYTHON=python3 make approach and failed with: (is it due to the MacOS filesystem?)
-# Traceback (most recent call last):
-#   File "setup.py", line 67, in <module>
-#     'Operating System :: MacOS'
-#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/core.py", line 137, in setup
-#     config = configuration()
-#   File "setup.py", line 30, in configuration
-#     config.add_subpackage('lightning')
-#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/misc_util.py", line 1036, in add_subpackage
-#     caller_level = 2)
-#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/misc_util.py", line 1005, in get_subpackage
-#     caller_level = caller_level + 1)
-#   File "/opt/conda/lib/python3.7/site-packages/numpy/distutils/misc_util.py", line 942, in _get_configuration_from_setup_py
-#     config = setup_module.configuration(*args)
-#   File "lightning/setup.py", line 11, in configuration
-#     maybe_cythonize_extensions(top_path, config)
-#   File "/opt/conda/lib/python3.7/site-packages/sklearn/_build_utils/__init__.py", line 92, in maybe_cythonize_extensions
-#     compiler_directives={'language_level': 3})
-#   File "/opt/conda/lib/python3.7/site-packages/Cython/Build/Dependencies.py", line 1026, in cythonize
-#     cythonize_one(*args)
-#   File "/opt/conda/lib/python3.7/site-packages/Cython/Build/Dependencies.py", line 1146, in cythonize_one
-#     raise CompileError(None, pyx_file)
-# Cython.Compiler.Errors.CompileError: lightning/impl/dual_cd_fast.pyx
-# Makefile:9: recipe for target 'inplace' failed

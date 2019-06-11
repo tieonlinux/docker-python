@@ -22,7 +22,7 @@ class TestDipy(unittest.TestCase):
             out_file = os.path.join(dir, 'test.png')
             window.record(ren, n_frames=1, out_path=out_file, size=(600, 600))
             self.assertTrue(os.path.exists(out_file))
-
+            
         vdisplay.stop()
 
     def test_graph(self):

@@ -1,7 +1,7 @@
 ARG BASE_TAG=staging
 
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04 AS nvidia
-FROM gcr.io/kaggle-images/python-tensorflow-whl:1.13.1-py36-2 as tensorflow_whl
+FROM gcr.io/kaggle-images/python-tensorflow-whl:1.13.1-py37-2 as tensorflow_whl
 FROM gcr.io/kaggle-images/python:${BASE_TAG}
 
 ADD clean-layer.sh  /tmp/clean-layer.sh
@@ -64,4 +64,4 @@ RUN pip install pycuda && \
     /tmp/clean-layer.sh
 
 # Re-add TensorBoard Jupyter extension patch
-ADD patches/tensorboard/notebook.py /opt/conda/lib/python3.6/site-packages/tensorboard/notebook.py
+ADD patches/tensorboard/notebook.py /opt/conda/lib/python3.7/site-packages/tensorboard/notebook.py

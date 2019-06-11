@@ -1,12 +1,15 @@
 import unittest
 import os
 import threading
+import google.auth.app_engine as app_engine
+
 from test.support import EnvironmentVarGuard
 from urllib.parse import urlparse
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from google.cloud import bigquery
+from google.cloud.bigquery import magics
 from google.auth.exceptions import DefaultCredentialsError
 from kaggle_gcp import KaggleKernelCredentials, PublicBigqueryClient
 
