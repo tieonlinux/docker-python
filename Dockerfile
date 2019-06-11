@@ -330,7 +330,7 @@ RUN pip install kmeans-smote --no-dependencies && \
     pip install lime && \
     pip install memory_profiler && \
     pip install ktext && \
-    pip install pyfasttext && \
+    pip install git+git://github.com/facebookresearch/fastText.git && \
     apt-get install -y libhunspell-dev && pip install hunspell && \
     pip install annoy && \
     pip install category_encoders && \
