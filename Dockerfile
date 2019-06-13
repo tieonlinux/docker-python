@@ -15,7 +15,7 @@ RUN apt-get update && \
     # as described by Lionel Chan at http://stackoverflow.com/a/37426929/5881346
 RUN sed -i "s/httpredir.debian.org/debian.uchicago.edu/" /etc/apt/sources.list && \
     apt-get update && apt-get install -y build-essential unzip cmake && \
-    conda update -y conda && conda update -y python && \
+    conda update -y python && \
     pip install --upgrade pip && \
     /tmp/clean-layer.sh
 
@@ -32,11 +32,10 @@ RUN pip install seaborn python-dateutil dask && \
     libmagickcore-6.q16-3-extra libmagickwand-6.q16-3 libnetpbm10 libopenexr22 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 \
     libpaper-utils libpaper1 libpixman-1-0 libpng16-16 librsvg2-2 librsvg2-common libthai-data libthai0 libtiff5 libwmf0.2-7 \
     libxcb-render0 libxcb-shm0 netpbm poppler-data p7zip-full && \
-    # imagemagick.org is down.
-    # cd /usr/local/src && \
-    # wget --no-verbose https://imagemagick.org/download/ImageMagick.tar.gz && \
-    # tar xzf ImageMagick.tar.gz && cd `ls -d ImageMagick-*` && pwd && ls -al && ./configure && \
-    # make -j $(nproc) && make install && \
+    cd /usr/local/src && \
+    wget --no-verbose https://imagemagick.org/download/ImageMagick.tar.gz && \
+    tar xzf ImageMagick.tar.gz && cd `ls -d ImageMagick-*` && pwd && ls -al && ./configure && \
+    make -j $(nproc) && make install && \
     /tmp/clean-layer.sh
 
 # Install tensorflow from a pre-built wheel
